@@ -1,7 +1,7 @@
 ---
 name: taskfuel
-version: 0.2.2
-description: Let an agent discover and call paid HTTP-402 APIs (search, market data, enrichment, and more) through the user's taskfuel.ai account — no crypto, paid from their prepaid balance. Use when the user asks the agent to buy/call a paid API, mentions taskfuel.ai, or a task needs a paid capability (web search, tweet search, market data) the agent lacks.
+version: 0.2.4
+description: Let an agent discover and call paid APIs (search, market data, enrichment, and more) through the user's taskfuel.ai account, paid per call from their prepaid balance. Use when the user asks the agent to buy/call a paid API, mentions taskfuel.ai, or a task needs a paid capability (web search, tweet search, market data) the agent lacks.
 ---
 
 # taskfuel.ai — paid APIs for your agent
@@ -13,13 +13,13 @@ wallet or a payment protocol — the taskfuel.ai gateway pays the upstream servi
 and bills the user's balance.
 
 Base URL: the gateway defaults to the production API; during local development
-`FOURZEROTWO_BASE_URL` (or `~/.config/taskfuel/config.json`) may point at a
+`TASKFUEL_BASE_URL` (or `~/.config/taskfuel/config.json`) may point at a
 local instance instead. Don't override it unless the user says so.
 
 ## 0. Ensure the CLI is installed
 
 ```sh
-command -v taskfuel || curl -fsSL ${FOURZEROTWO_BASE_URL:-https://app.taskfuel.ai}/install.sh | sh
+command -v taskfuel || curl -fsSL https://taskfuel.ai/install.sh | sh
 ```
 
 If `~/.local/bin` is not on PATH, the installer says so — follow its hint.
@@ -31,11 +31,16 @@ taskfuel whoami        # prints the connected account; errors if not connected
 ```
 
 - Works → you're connected.
-- "not connected" → run `taskfuel connect`. It prints a **pairing code and a
-  URL**, and tries to open the user's browser (best-effort — it may not on a
-  headless/SSH box). **Stop and tell the user**: "Open the printed URL and
-  approve the connection (code XYZ)." Wait for the command to finish, then
-  re-check `taskfuel whoami`.
+- "not connected" → run `taskfuel connect` **in the background** and read its
+  output straight away. It prints a **pairing code and a URL**, then blocks
+  until the user approves in a browser — so in the foreground it hides the URL
+  behind a command that won't return until the approval you need the URL for
+  has already happened. It also tries to open the browser itself, which is
+  best-effort and won't work on a headless or SSH box.
+
+  **Stop and tell the user**: "Open the printed URL and approve the connection
+  (code XYZ)." Then wait for the command to exit and re-check
+  `taskfuel whoami`.
 
 ## 2. Discover what you can do
 
@@ -65,20 +70,59 @@ method and URL back as a request line: `taskfuel discover POST https://…`.
 ## 3. Call an endpoint
 
 ```sh
-taskfuel call <url> --dry-run            # check the real price from the 402 challenge — nothing paid
+taskfuel call <url> --dry-run            # check the real price the endpoint quotes — nothing paid
 taskfuel call <url>                      # the paid call (GET by default)
 taskfuel call <url> --method POST --body '{"query":"…"}'
+taskfuel call <url> --max-amount 0.25    # refuse to pay more than $0.25 for this call
 ```
 
-`--dry-run` (alias `--quote`) sends the real request and reads the price off
-the endpoint's HTTP-402 challenge without paying — it is the authoritative
-price for that exact payload, not an estimate. One caveat: a **free** endpoint
-never issues a 402, so its "quote" executes the request and returns the
-response at `paid $0.00` (the only way to learn a price is to ask).
+`--max-amount <usd>` sets your own spend ceiling for one call: if the
+endpoint's price comes back above it, the gateway rejects instead of paying
+(same error as the per-call cap). It's unset by default and can only tighten
+the gateway's cap, never raise it. Use it to pay a quoted price safely: after
+`--dry-run` shows the price, repeat the call with `--max-amount` set to that
+quote so a repriced endpoint can't charge more than the user approved.
+
+`--dry-run` (alias `--quote`) sends the real request and reads the price the
+endpoint quotes back, without paying — it is the authoritative price for that
+exact payload, not an estimate. One caveat: a **free** endpoint has no price to
+quote, so its "quote" executes the request and returns the response at
+`paid $0.00` (the only way to learn a price is to ask).
 
 The response body prints to stdout (pipe it, e.g. `| jq`); the cost line
 prints to stderr — "quoted $0.01 — nothing paid" for quotes, "paid $0.0070 —
-balance $4.82 remaining" for real calls.
+balance $4.82 remaining" for real paid calls.
+
+## 4. Rate the endpoints you call, and report upstream issues
+
+The upstream provider — not taskfuel — maintains each endpoint and its docs,
+response quality, price, and payment terms. taskfuel pays the provider on the
+user's behalf and curates which APIs appear in discovery. Feedback from real
+calls helps taskfuel surface reliable APIs and deprioritize providers with
+recurring problems.
+
+After calling an endpoint, rate it with the same method and URL you called:
+
+```sh
+taskfuel rate https://api.example.com/search --vote up
+taskfuel rate https://api.example.com/generate --method POST --vote down
+```
+
+- Vote `up` if you got the expected/useful result; vote `down` if the
+  endpoint didn't work or wasn't worth the price.
+- You get one vote per endpoint, and you can change it at any time — voting
+  again simply replaces your previous vote. Rate an endpoint once you have a
+  view on it; re-rate it if later calls change your mind.
+- Use the method and URL exactly as `discover` returns them. `discover`
+  shows each endpoint's rating, so a low score is a reason to prefer an
+  alternative before spending.
+- Add `--report '…'` alongside your vote when something concrete disrupted
+  usage: an unexpected response code, arguments that were silently ignored,
+  an empty or low-quality response, behavior that contradicts the endpoint's
+  docs. Describe the problem briefly and specifically; do not include secrets
+  or unrelated response data. A report is a curation signal to taskfuel about
+  the upstream provider — it does not itself change the endpoint's rating;
+  your vote does.
 
 ## Spending rules (non-negotiable)
 
@@ -87,6 +131,8 @@ balance $4.82 remaining" for real calls.
   per-call cap also protects you from surprises).
 - **Ask before big or repeated spends**: single calls over $0.10, or loops
   that will make more than ~5 paid calls, need the user's explicit OK first.
+  When the user approves a quoted price, pass it as `--max-amount` on the
+  paid call so you can never exceed what they agreed to.
 - **Never retry a failed paid call blindly.** If a call errors after payment
   ("paid" line printed but bad response), check `taskfuel balance` to see
   whether it was charged, report to the user, and let them decide.
@@ -104,5 +150,9 @@ the phrasing:
   domain isn't callable; `taskfuel discover` lists what is, and keyword
   search finds alternatives.
 - "Upstream price $X exceeds the per-call cap $Y." — the endpoint costs more
-  than the hard cap allows; don't retry, report the price to the user.
-- "Rate limit exceeded — try again in a minute." — wait, don't hammer.
+  than the cap in effect (your `--max-amount` if you set one, otherwise the
+  gateway's hard cap); don't blindly retry. If your own `--max-amount` caused
+  it, ask the user before retrying with a higher limit; if it's the gateway
+  cap, report the price to the user.
+- "Rate limit exceeded — try again in Ns." — 10 calls/min per key, 60/min
+  across all users. Wait the stated number of seconds, don't hammer.
