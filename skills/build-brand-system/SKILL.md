@@ -24,8 +24,7 @@ the other way round.
 - `taskfuel` CLI connected (`taskfuel whoami`), balance ≥ ~$0.20 (each board is
   ~$0.05; budget 2–3 attempts).
 - `blockrun.ai` in the gateway's allowed domains (`taskfuel discover`).
-- Base [`taskfuel`](../../taskfuel/SKILL.md) skill covers payment mechanics —
-  read it first if you haven't.
+- Base `taskfuel` skill covers payment mechanics — read it first if you haven't.
 
 If the environment has its own image generation, use that instead and skip the
 paid call. Without either, still produce `BRAND.md` and hand over the board

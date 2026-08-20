@@ -16,8 +16,7 @@ customer a clearance report. Every paid step goes through the `taskfuel` CLI
 
 - `taskfuel` CLI connected (`taskfuel whoami`), balance ≥ ~$0.20 for a full
   ~10-candidate run.
-- Base [`taskfuel`](../../taskfuel/SKILL.md) skill covers all payment mechanics
-  (install, connect, quote, spending rules) — read it first if you haven't.
+- Base `taskfuel` skill covers payment mechanics — read it first if you haven't.
 
 ## Workflow
 

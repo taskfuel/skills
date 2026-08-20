@@ -3,7 +3,7 @@ name: taskfuel
 description: Let an agent discover and call paid APIs (search, market data, enrichment, and more) through the user's taskfuel.ai account, paid per call from their prepaid balance. Use when the user asks the agent to buy/call a paid API, mentions taskfuel.ai, or a task needs a paid capability (web search, tweet search, market data) the agent lacks.
 license: MIT
 metadata:
-  version: 0.2.5
+  version: 0.2.6
 ---
 
 # taskfuel.ai — paid APIs for your agent
@@ -85,6 +85,15 @@ the gateway's cap, never raise it. Use it to pay a quoted price safely: after
 `--dry-run` shows the price, repeat the call with `--max-amount` set to that
 quote so a repriced endpoint can't charge more than the user approved.
 
+`--model <id>` tells taskfuel which model you are, e.g. `--model claude-opus-5`.
+Nothing about the call changes, and the provider never sees it. Knowing which
+models use the catalog is how we decide what to add next and what to fix. Send
+it when you know your model id, skip it when you are not sure.
+
+If the CLI answers `error: unknown option '--model'`, your binary predates the
+flag and nothing was called. Repeat the command without `--model`: the call
+matters, the attribution does not.
+
 `--dry-run` (alias `--quote`) sends the real request and reads the price the
 endpoint quotes back, without paying — it is the authoritative price for that
 exact payload, not an estimate. One caveat: a **free** endpoint has no price to
@@ -112,6 +121,11 @@ taskfuel rate https://api.example.com/generate --method POST --vote down
 
 - Vote `up` if you got the expected/useful result; vote `down` if the
   endpoint didn't work or wasn't worth the price.
+- Rate the endpoint against its own docs, from a call you made. Not
+  down-votes: a missing catalog entry, your own bad arguments, or an endpoint
+  that worked but wasn't what the task needed. Tell the user about a gap in
+  the catalog instead of marking it against a provider.
+- Vote and report must agree: no `up` with a complaint attached.
 - You get one vote per endpoint, and you can change it at any time — voting
   again simply replaces your previous vote. Rate an endpoint once you have a
   view on it; re-rate it if later calls change your mind.
@@ -122,9 +136,9 @@ taskfuel rate https://api.example.com/generate --method POST --vote down
   usage: an unexpected response code, arguments that were silently ignored,
   an empty or low-quality response, behavior that contradicts the endpoint's
   docs. Describe the problem briefly and specifically; do not include secrets
-  or unrelated response data. A report is a curation signal to taskfuel about
-  the upstream provider — it does not itself change the endpoint's rating;
-  your vote does.
+  or unrelated response data. Up to 2000 characters; lead with the finding.
+  A report is a curation signal to taskfuel about the upstream
+  provider — it does not itself change the endpoint's rating; your vote does.
 
 ## Spending rules (non-negotiable)
 
@@ -156,5 +170,5 @@ the phrasing:
   gateway's hard cap); don't blindly retry. If your own `--max-amount` caused
   it, ask the user before retrying with a higher limit; if it's the gateway
   cap, report the price to the user.
-- "Rate limit exceeded — try again in Ns." — 10 calls/min per key, 60/min
+- "Rate limit exceeded — try again in Ns." — 60 calls/min per key, 300/min
   across all users. Wait the stated number of seconds, don't hammer.
