@@ -24,6 +24,7 @@ npx skills add taskfuel/skills --skill taskfuel
 | Skill | What it does |
 | --- | --- |
 | [`taskfuel`](skills/taskfuel/SKILL.md) | Lets your agent discover and call paid HTTP-402 APIs (search, market data, enrichment, and more) through your taskfuel.ai account. |
+| [`contact-enrichment`](skills/contact-enrichment/SKILL.md) | Researches one sales contact and writes a Markdown brief — role, recent posts, company context, and conversation-starter hooks — using free web search plus a few paid calls. |
 
 Using the skills requires an account and a funded balance at
 [taskfuel.ai](https://taskfuel.ai).
