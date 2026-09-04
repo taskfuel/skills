@@ -3,7 +3,7 @@ name: taskfuel
 description: Let an agent discover and call paid APIs (search, market data, enrichment, and more) through the user's taskfuel.ai account, paid per call from their prepaid balance. Use when the user asks the agent to buy/call a paid API, mentions taskfuel.ai, or a task needs a paid capability (web search, tweet search, market data) the agent lacks.
 license: MIT
 metadata:
-  version: 0.3.0
+  version: 0.4.1
 ---
 
 # taskfuel.ai — paid APIs for your agent
@@ -60,14 +60,23 @@ synonym once, then tell the user.
 The same command drills into other views when search isn't the question:
 
 ```sh
-taskfuel discover <method> <url>         # one endpoint's full docs (params, body schema)
 taskfuel discover <domain>               # every endpoint one service offers (e.g. twit.sh)
 taskfuel discover                        # the allowed service domains, with descriptions
 ```
 
-Search and listing results show `METHOD  URL  SUMMARY`. To learn an
-endpoint's exact parameters and request-body schema before calling, paste the
-method and URL back as a request line: `taskfuel discover POST https://…`.
+**Then read the endpoint's full docs before you call it.** Search and listing
+results show `METHOD  URL  SUMMARY`, and that summary is not the endpoint's
+contract. Paste the method and URL back as a request line to get the real
+thing:
+
+```sh
+taskfuel discover <method> <url>         # one endpoint's full docs (params, body schema)
+```
+
+Skip this and you are guessing at required parameters, and on many endpoints
+the price depends on the arguments you send, so a guess is a spending decision
+too. Any price the docs carry is an estimate: to know what your own request
+costs, you **must** `--quote` it (section 3).
 
 ## 3. Call an endpoint
 
@@ -86,13 +95,10 @@ the gateway's cap, never raise it. Use it to pay a quoted price safely: after
 quote so a repriced endpoint can't charge more than the user approved.
 
 `--model <id>` tells taskfuel which model you are, e.g. `--model claude-opus-5`.
-Nothing about the call changes, and the provider never sees it. Knowing which
-models use the catalog is how we decide what to add next and what to fix. Send
-it when you know your model id, skip it when you are not sure.
-
-If the CLI answers `error: unknown option '--model'`, your binary predates the
-flag and nothing was called. Repeat the command without `--model`: the call
-matters, the attribution does not.
+Nothing about the call changes and the provider never sees it; it is how we
+decide what to add next. Send it when you know your model id, skip it when you
+are not sure. If the CLI rejects the flag as unknown, your binary predates it
+and nothing was called: repeat without it.
 
 `--dry-run` (alias `--quote`) sends the real request and reads the price the
 endpoint quotes back, without paying — it is the authoritative price for that
@@ -104,7 +110,31 @@ The response body prints to stdout (pipe it, e.g. `| jq`); the cost line
 prints to stderr — "quoted $0.01 — nothing paid" for quotes, "paid $0.0070 —
 balance $4.82 remaining" for real paid calls.
 
-## 4. Rate the endpoints you call, and report upstream issues
+## 4. If a call never comes back, don't call it again
+
+A paid call is not cancelled when you stop waiting for it. Generative
+endpoints can run for minutes, your own tool timeout is usually shorter, and
+the gateway pays the provider and charges the balance either way. So a `call`
+that timed out or was killed bought the work and lost the response. Repeating
+it pays for the same work twice.
+
+Recover it instead, free:
+
+```sh
+taskfuel result                                # what you lost, and what is still running
+taskfuel result <request_id>                   # print that call's response body
+taskfuel result <request_id> --output out.png  # ...or write it to a file
+```
+
+Run it bare first: a call that died on your side never printed its request id,
+so the listing is where you find one. Each row says what state it is in and
+what to do about it.
+
+If the CLI answers `error: unknown command 'result'`, your binary predates
+recovery: run `taskfuel update`, and tell the user what was lost rather than
+paying for it twice.
+
+## 5. Rate the endpoints you call, and report upstream issues
 
 The upstream provider — not taskfuel — maintains each endpoint and its docs,
 response quality, price, and payment terms. taskfuel pays the provider on the
@@ -120,27 +150,22 @@ taskfuel rate https://api.example.com/generate --method POST --vote down
 ```
 
 - Vote `up` if you got the expected/useful result; vote `down` if the
-  endpoint didn't work or wasn't worth the price.
-- Rate the endpoint against its own docs, from a call you made. Not
-  down-votes: a missing catalog entry, your own bad arguments, or an endpoint
-  that worked but wasn't what the task needed. A catalog gap goes to
-  `taskfuel feedback` (section 5) and to the user, not against a provider.
-- Vote and report must agree: no `up` with a complaint attached.
-- You get one vote per endpoint, and you can change it at any time — voting
-  again simply replaces your previous vote. Rate an endpoint once you have a
-  view on it; re-rate it if later calls change your mind.
-- Use the method and URL exactly as `discover` returns them. `discover`
-  shows each endpoint's rating, so a low score is a reason to prefer an
-  alternative before spending.
-- Add `--report '…'` alongside your vote when something concrete disrupted
-  usage: an unexpected response code, arguments that were silently ignored,
-  an empty or low-quality response, behavior that contradicts the endpoint's
-  docs. Describe the problem briefly and specifically; do not include secrets
-  or unrelated response data. Up to 2000 characters; lead with the finding.
-  A report is a curation signal to taskfuel about the upstream
-  provider — it does not itself change the endpoint's rating; your vote does.
+  endpoint didn't work or wasn't worth the price. Vote and report must agree:
+  no `up` with a complaint attached.
+- Judge the endpoint against its own docs, from a call you made. A missing
+  catalog entry, your own bad arguments, or an endpoint that worked but wasn't
+  what the task needed are not down-votes: a catalog gap goes to `taskfuel
+  feedback` (section 6) and to the user.
+- One vote per endpoint, changeable at any time — voting again replaces the
+  previous vote. `discover` shows each endpoint's rating, so a low score is a
+  reason to prefer an alternative before spending.
+- Add `--report '…'` when something concrete disrupted usage: an unexpected
+  response code, arguments silently ignored, an empty or low-quality response,
+  behavior contradicting the docs. Lead with the finding, briefly; no secrets
+  or unrelated response data, up to 2000 characters. A report is a curation
+  signal, not a rating — your vote is the rating.
 
-## 5. Send feedback about taskfuel itself
+## 6. Send feedback about taskfuel itself
 
 Ratings are about one endpoint. For everything else there is one free-text
 channel to taskfuel:
@@ -149,21 +174,30 @@ channel to taskfuel:
 taskfuel feedback "discover finds nothing for weather data; three searches, zero usable hits"
 ```
 
-Send feedback when you hit a problem with taskfuel rather than with a single
-endpoint's own behavior:
-
-- install, `connect`, or auth trouble; CLI or gateway errors
-- `discover` that found nothing or the wrong things for a real task
-- a capability missing from the catalog (also tell the user)
-- billing, balance, quoting, or spending-cap confusion; docs that turned out
-  to be wrong
-- the same failure pattern across several endpoints or providers — describe
-  the pattern once here, and still rate each endpoint you actually called on
-  its own behavior
+Send it for a problem with taskfuel rather than with one endpoint's behavior:
+install, `connect` or auth trouble; CLI or gateway errors; `discover` that
+found nothing or the wrong things; a capability missing from the catalog (tell
+the user too); billing, balance or spending-cap confusion; docs that turned out
+to be wrong; or the same failure pattern across several providers — describe
+that once here, and still rate each endpoint you called.
 
 Send it when you actually hit something, once per problem — don't restate an
 endpoint report you already filed, and don't include secrets or response
 data. Lead with what happened and what you expected; up to 2000 characters.
+
+## What you get charged for
+
+- **Success or nothing.** A call rejected before it goes out (empty balance,
+  a domain that is not allowed, a price above the cap, a rate limit, a
+  malformed request) and a call the upstream fails (4xx, 5xx, or a payment
+  that does not settle) both cost nothing. taskfuel absorbs the upstream cost
+  rather than passing it on.
+- **A successful call is charged even when its answer is useless to you.**
+  Success means the endpoint answered, not that it answered well. An empty
+  search result, a thin response, or a bad match for your query is a real
+  charge and not a billing error, so don't tell the user to expect a refund.
+  Downvote the endpoint instead (section 5), and use `taskfuel feedback`
+  (section 6) when the problem is taskfuel's rather than one endpoint's.
 
 ## Spending rules (non-negotiable)
 
@@ -171,29 +205,16 @@ data. Lead with what happened and what you expected; up to 2000 characters.
   session. The quoted amount is the real charge for that payload (a hard
   per-call cap also protects you from surprises).
 - **Ask before big or repeated spends**: single calls over $0.10, or loops
-  that will make more than ~5 paid calls, need the user's explicit OK first.
-  When the user approves a quoted price, pass it as `--max-amount` on the
-  paid call so you can never exceed what they agreed to.
+  that will make more than ~5 paid calls, need the user's explicit OK first
+  (the gateway also rate-limits you to 60 calls/min per key). When the user
+  approves a quoted price, pass it as `--max-amount` on the paid call so you
+  can never exceed what they agreed to. If a call is then rejected for
+  exceeding a cap, raising your own `--max-amount` needs the user's OK, and
+  the gateway's hard cap is not yours to raise.
 - **Never retry a failed paid call blindly.** If a call errors after payment
   ("paid" line printed but bad response), check `taskfuel balance` to see
-  whether it was charged, report to the user, and let them decide.
+  whether it was charged, report to the user, and let them decide. If the
+  response was lost rather than bad, recover it with `taskfuel result`
+  (section 4): a retry pays for the same work twice.
 - **Stop at low balance**: if balance < the next call's price, stop and tell
   the user to top up at their dashboard — don't hunt for workarounds.
-
-## Errors you may see
-
-The CLI prints the gateway's message as plaintext (`error: …`) — recognize
-the phrasing:
-
-- "Your balance is empty. Top up …" — credits exhausted; tell the user to
-  top up at https://app.taskfuel.ai, then stop.
-- "taskfuel.ai only calls upstreams on its allowed domains …" — that URL's
-  domain isn't callable; `taskfuel discover` lists what is, and keyword
-  search finds alternatives.
-- "Upstream price $X exceeds the per-call cap $Y." — the endpoint costs more
-  than the cap in effect (your `--max-amount` if you set one, otherwise the
-  gateway's hard cap); don't blindly retry. If your own `--max-amount` caused
-  it, ask the user before retrying with a higher limit; if it's the gateway
-  cap, report the price to the user.
-- "Rate limit exceeded — try again in Ns." — 60 calls/min per key, 300/min
-  across all users. Wait the stated number of seconds, don't hammer.
