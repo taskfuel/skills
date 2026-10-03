@@ -35,8 +35,9 @@ where free search is measurably weaker.
 **Spending rules specific to this skill.**
 - **`--dry-run` every call and pay with `--max-amount` set to the quote.** Every
   price in this file is indicative; the quote is authoritative.
-- **Any call over $0.10 needs explicit OK** — that's **PDL ($0.28)** and
-  **`userInsights` ($0.50)**.
+- **PDL ($0.28) and `userInsights` ($0.50) are opt-in add-ons**, each several
+  times the price of the default run. Offer them by name and price and wait for
+  an explicit OK; never buy them to fill a blank field.
 - Report the live running total, and read `taskfuel balance` before and after the
   run. For authoritative billing, point the user at their taskfuel.ai dashboard.
 

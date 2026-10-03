@@ -3,7 +3,7 @@ name: taskfuel
 description: Let an agent discover and call paid APIs (search, market data, enrichment, and more) through the user's taskfuel.ai account, paid per call from their prepaid balance. Use when the user asks the agent to buy/call a paid API, mentions taskfuel.ai, or a task needs a paid capability (web search, tweet search, market data) the agent lacks.
 license: MIT
 metadata:
-  version: 0.4.1
+  version: 0.5.0
 ---
 
 # taskfuel.ai — paid APIs for your agent
@@ -13,6 +13,9 @@ prepaid USD balance, and the `taskfuel` CLI lets you (the agent) spend it on
 pay-per-call APIs from a curated list of provider domains. You never touch a
 wallet or a payment protocol — the taskfuel.ai gateway pays the upstream service
 and bills the user's balance.
+
+Of the commands here only `call` spends anything. `discover`, `quote`,
+`result`, `rate`, `feedback` and `balance` are all free.
 
 Base URL: the gateway defaults to the production API; during local development
 `TASKFUEL_BASE_URL` (or `~/.config/taskfuel/config.json`) may point at a
@@ -76,23 +79,27 @@ taskfuel discover <method> <url>         # one endpoint's full docs (params, bod
 Skip this and you are guessing at required parameters, and on many endpoints
 the price depends on the arguments you send, so a guess is a spending decision
 too. Any price the docs carry is an estimate: to know what your own request
-costs, you **must** `--quote` it (section 3).
+costs, you **must** `quote` it (section 3), unless the quote is refused as
+`not_quotable`.
 
 ## 3. Call an endpoint
 
 ```sh
-taskfuel call <url> --dry-run            # check the real price the endpoint quotes — nothing paid
-taskfuel call <url>                      # the paid call (GET by default)
-taskfuel call <url> --method POST --body '{"query":"…"}'
-taskfuel call <url> --max-amount 0.25    # refuse to pay more than $0.25 for this call
+taskfuel quote <url>                     # the real price this exact request costs — nothing paid
+taskfuel call <url> --max-amount 0.01    # the paid call, capped at the price you quoted
+taskfuel call <url> --method POST --body '{"query":"…"}' --max-amount 0.01
 ```
 
-`--max-amount <usd>` sets your own spend ceiling for one call: if the
-endpoint's price comes back above it, the gateway rejects instead of paying
-(same error as the per-call cap). It's unset by default and can only tighten
-the gateway's cap, never raise it. Use it to pay a quoted price safely: after
-`--dry-run` shows the price, repeat the call with `--max-amount` set to that
-quote so a repriced endpoint can't charge more than the user approved.
+Quote first, then pay: two commands, and only the second one spends. (`taskfuel
+call --quote`, alias `--dry-run`, is the same thing on the older binary.)
+
+**Always pass `--max-amount` on a paid call**, set to the price `quote` just
+returned. It sets your own ceiling for that one call: if the price comes back
+above it, the gateway rejects instead of paying (same error as the per-call
+cap). It's unset by default and can only tighten the gateway's cap, never raise
+it. Sending it costs nothing and buys two things — a repriced endpoint is
+refused rather than charged, and the ceiling is visible in the command itself,
+to the user and to whatever is deciding whether to run it.
 
 `--model <id>` tells taskfuel which model you are, e.g. `--model claude-opus-5`.
 Nothing about the call changes and the provider never sees it; it is how we
@@ -100,11 +107,11 @@ decide what to add next. Send it when you know your model id, skip it when you
 are not sure. If the CLI rejects the flag as unknown, your binary predates it
 and nothing was called: repeat without it.
 
-`--dry-run` (alias `--quote`) sends the real request and reads the price the
-endpoint quotes back, without paying — it is the authoritative price for that
-exact payload, not an estimate. One caveat: a **free** endpoint has no price to
-quote, so its "quote" executes the request and returns the response at
-`paid $0.00` (the only way to learn a price is to ask).
+`quote` sends the real request and reads the price the endpoint quotes back,
+without paying — it is the authoritative price for that exact payload, not an
+estimate. It never executes anything: an endpoint whose spec declares no price
+is refused (`not_quotable`) and nothing is sent. Call it directly if you mean
+to run it, with `--max-amount` to bound the charge.
 
 The response body prints to stdout (pipe it, e.g. `| jq`); the cost line
 prints to stderr — "quoted $0.01 — nothing paid" for quotes, "paid $0.0070 —
@@ -201,14 +208,25 @@ data. Lead with what happened and what you expected; up to 2000 characters.
 
 ## Spending rules (non-negotiable)
 
-- **Preview before paying**: `--quote` the first call to any endpoint in a
-  session. The quoted amount is the real charge for that payload (a hard
-  per-call cap also protects you from surprises).
-- **Ask before big or repeated spends**: single calls over $0.10, or loops
-  that will make more than ~5 paid calls, need the user's explicit OK first
-  (the gateway also rate-limits you to 60 calls/min per key). When the user
-  approves a quoted price, pass it as `--max-amount` on the paid call so you
-  can never exceed what they agreed to. If a call is then rejected for
+- **Preview before paying**: `taskfuel quote` the first call to any endpoint
+  in a session, and pass what it returns to `--max-amount` on the paid call.
+  The quoted amount is the real charge for that payload (a hard per-call cap
+  also protects you from surprises). A quote refused as `not_quotable` means
+  the endpoint declares no price: call it with a `--max-amount` you are willing
+  to pay. A `spec_unavailable` refusal is transient: retry the quote shortly.
+- **Ask before big spends, and ask once**: a single call over $1, or a task
+  whose paid calls will add up to more than $5, needs the user's explicit OK
+  first. Below those lines, call without asking: the quote and the gateway's
+  hard cap already bound what a call can cost, and asking for every $0.10
+  call is what users complain about. An approval sticks for the session:
+  once the user has OK'd an endpoint at a quoted price, do not ask again for
+  that endpoint at the same or a lower price. Ask again only when a quote
+  comes back higher, an endpoint is new, or the running total crosses the
+  budget again (each further $5, or whatever budget the user named up front,
+  which replaces the default). The gateway also rate-limits you to 60
+  calls/min per key. When the user approves a quoted price, pass it as
+  `--max-amount` on the paid call so you can never exceed what they agreed
+  to. If a call is then rejected for
   exceeding a cap, raising your own `--max-amount` needs the user's OK, and
   the gateway's hard cap is not yours to raise.
 - **Never retry a failed paid call blindly.** If a call errors after payment

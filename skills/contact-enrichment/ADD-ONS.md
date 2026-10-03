@@ -1,8 +1,8 @@
 # Opt-in paid add-ons
 
 Extras to the default $0.067 run of [`SKILL.md`](SKILL.md). **None of these run by
-default.** Offer each by name and price and wait; PDL and `userInsights` clear the
-$0.10 threshold, so they need explicit OK rather than a nod.
+default.** Offer each by name and price and wait; PDL and `userInsights` each cost
+several times the default run, so they need explicit OK rather than a nod.
 
 | Add-on | Price | Buy it when |
 |---|---|---|
@@ -36,8 +36,8 @@ qualifiers — that's what triggers the entity matcher.
 
 Apollo does not return phones. PDL is the stack's only phone source. **Needs an
 email** — from intake, or one Apollo returned. Offer it **by name and price**,
-only when the rep says they need to dial; it exceeds the $0.10 threshold, so it
-needs explicit OK. Never buy it to fill a blank field.
+only when the rep says they need to dial; at four times the default run it needs
+explicit OK. Never buy it to fill a blank field.
 
 **Two failure modes, check both:**
 1. **Explicit no-match:** HTTP 200 with `{"status":404,"data":null}` — check the
