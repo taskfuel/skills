@@ -3,7 +3,7 @@ name: taskfuel
 description: Let an agent discover and call paid APIs (search, market data, enrichment, and more) through the user's taskfuel.ai account, paid per call from their prepaid balance. Use when the user asks the agent to buy/call a paid API, mentions taskfuel.ai, or a task needs a paid capability (web search, tweet search, market data) the agent lacks.
 license: MIT
 metadata:
-  version: 0.5.0
+  version: 0.5.1
 ---
 
 # taskfuel.ai — paid APIs for your agent
@@ -229,6 +229,12 @@ data. Lead with what happened and what you expected; up to 2000 characters.
   to. If a call is then rejected for
   exceeding a cap, raising your own `--max-amount` needs the user's OK, and
   the gateway's hard cap is not yours to raise.
+- **Report spend once per task.** Give the user the total when the result
+  is in, not a line per paid call. An async job is one purchase: polling its
+  task id to a terminal status belongs to the submit, approved or not, and
+  the polls count toward the task budget. Polls can be charged: poll at the
+  documented cadence, or every 20 seconds past the typical completion time. After 30 polls, stop and tell the user the job is still running.
+  Resubmitting buys it twice.
 - **Never retry a failed paid call blindly.** If a call errors after payment
   ("paid" line printed but bad response), check `taskfuel balance` to see
   whether it was charged, report to the user, and let them decide. If the
