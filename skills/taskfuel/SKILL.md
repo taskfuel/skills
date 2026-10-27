@@ -3,7 +3,7 @@ name: taskfuel
 description: Let an agent discover and call paid APIs (search, market data, enrichment, and more) through the user's taskfuel.ai account, paid per call from their prepaid balance. Use when the user asks the agent to buy/call a paid API, mentions taskfuel.ai, or a task needs a paid capability (web search, tweet search, market data) the agent lacks.
 license: MIT
 metadata:
-  version: 0.5.3
+  version: 0.5.4
 ---
 
 # taskfuel.ai — paid APIs for your agent
@@ -11,8 +11,8 @@ metadata:
 taskfuel.ai gives this machine's user one account for the paid web: they hold a
 prepaid USD balance, and the `taskfuel` CLI lets you (the agent) spend it on
 pay-per-call APIs from a curated list of provider domains. You never touch a
-wallet or a payment protocol — the taskfuel.ai gateway pays the upstream service
-and bills the user's balance.
+wallet or a payment protocol — the taskfuel.ai gateway pays the provider and bills
+the user's balance.
 
 Of the commands here only `call` spends anything. `discover`, `quote`,
 `result`, `rate`, `feedback` and `balance` are all free.
@@ -90,8 +90,7 @@ taskfuel call <url> --max-amount 0.01    # the paid call, capped at the price yo
 taskfuel call <url> --method POST --body '{"query":"…"}' --max-amount 0.01
 ```
 
-Quote first, then pay: two commands, and only the second one spends. (`taskfuel
-call --quote`, alias `--dry-run`, is the same thing on the older binary.)
+Quote first, then pay: two commands, and only the second one spends.
 
 **Always pass `--max-amount` on a paid call**, set to the price `quote` just
 returned. It sets your own ceiling for that one call: if the price comes back
@@ -104,8 +103,7 @@ to the user and to whatever is deciding whether to run it.
 `--model <id>` tells taskfuel which model you are, e.g. `--model claude-opus-5`.
 Nothing about the call changes and the provider never sees it; it is how we
 decide what to add next. Send it when you know your model id, skip it when you
-are not sure. If the CLI rejects the flag as unknown, your binary predates it
-and nothing was called: repeat without it.
+are not sure.
 
 `quote` sends the real request and reads the price the endpoint quotes back,
 without paying — it is the authoritative price for that exact payload, not an
@@ -137,13 +135,9 @@ Run it bare first: a call that died on your side never printed its request id,
 so the listing is where you find one. Each row says what state it is in and
 what to do about it.
 
-If the CLI answers `error: unknown command 'result'`, your binary predates
-recovery: run `taskfuel update`, and tell the user what was lost rather than
-paying for it twice.
-
 ## 5. Rate the endpoints you call, and report upstream issues
 
-The upstream provider — not taskfuel — maintains each endpoint and its docs,
+The provider, not taskfuel, maintains each endpoint and its docs,
 response quality, price, and payment terms. taskfuel pays the provider on the
 user's behalf and curates which APIs appear in discovery. Feedback from real
 calls helps taskfuel surface reliable APIs and deprioritize providers with
@@ -196,8 +190,8 @@ data. Lead with what happened and what you expected; up to 2000 characters.
 
 - **Success or nothing.** A call rejected before it goes out (empty balance,
   a domain that is not allowed, a price above the cap, a rate limit, a
-  malformed request) and a call the upstream fails (4xx, 5xx, or a payment
-  that does not settle) both cost nothing. taskfuel absorbs the upstream cost
+  malformed request) and a call the provider fails (4xx, 5xx, or a payment
+  that does not settle) both cost nothing. taskfuel absorbs the provider's cost
   rather than passing it on.
 - **A successful call is charged even when its answer is useless to you.**
   Success means the endpoint answered, not that it answered well. An empty
@@ -223,24 +217,23 @@ data. Lead with what happened and what you expected; up to 2000 characters.
   that endpoint at the same or a lower price. Ask again only when a quote
   comes back higher, an endpoint is new, or the running total crosses the
   budget again (each further $5, or whatever budget the user named up front,
-  which replaces the default). The gateway also rate-limits you to 60
-  calls/min per key. When the user approves a quoted price, pass it as
-  `--max-amount` on the paid call so you can never exceed what they agreed
-  to. If a call is then rejected for
-  exceeding a cap, raising your own `--max-amount` needs the user's OK, and
-  the gateway's hard cap is not yours to raise.
+  which replaces the default).
+- **Approved price is the ceiling.** Pass the price the user approved as
+  `--max-amount`, so a call can never exceed what they agreed to. If a call is
+  rejected for exceeding a cap, raising your own `--max-amount` needs the
+  user's OK, and the gateway's hard cap is not yours to raise.
+- **Rate limit**: 60 calls/min per key.
 - **Report spend once per task.** Give the user the total when the result
   is in, not a line per paid call. An async job is one purchase: polling its
   task id to a terminal status belongs to the submit, approved or not, and
   the polls count toward the task budget. Poll through taskfuel too: the
   job belongs to the wallet that paid for it, so its status URL refuses a
-  direct request. Polls can be charged: poll at the
-  documented cadence, or every 20 seconds past the typical completion time. After 30 polls, stop and tell the user the job is still running.
-  Resubmitting buys it twice.
-- **Never retry a failed paid call blindly.** If a call errors after payment
-  ("paid" line printed but bad response), check `taskfuel balance` to see
-  whether it was charged, report to the user, and let them decide. If the
-  response was lost rather than bad, recover it with `taskfuel result`
-  (section 4): a retry pays for the same work twice.
+  direct request. Polls can be charged: poll at the documented cadence, or
+  every 20 seconds past the typical completion time. After 30 polls, stop and
+  tell the user the job is still running. Resubmitting buys it twice.
+- **Never retry a paid call blindly.** A "paid" line means the call was
+  charged, however bad the response: tell the user and let them decide, and
+  rate the endpoint down. A lost response is recovered with `taskfuel result`
+  (section 4).
 - **Stop at low balance**: if balance < the next call's price, stop and tell
   the user to top up at their dashboard — don't hunt for workarounds.
