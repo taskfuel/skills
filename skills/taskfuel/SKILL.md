@@ -1,9 +1,9 @@
 ---
 name: taskfuel
-description: Let an agent discover and call paid APIs (search, market data, enrichment, and more) through the user's taskfuel.ai account, paid per call from their prepaid balance. Use when the user asks the agent to buy/call a paid API, mentions taskfuel.ai, or a task needs a paid capability (web search, tweet search, market data) the agent lacks.
+description: "Gives the agent capabilities it lacks, billed per call from the user's taskfuel.ai balance: generate images, video, music and speech; transcribe audio; find and verify emails; enrich people and companies; build lead lists; search X, Instagram, TikTok and YouTube; live market, crypto and SEC data; flights and weather; OCR, translation, screenshots; send email, place phone calls, mail letters; run VMs. Use when a task needs one of these and no installed tool covers it, even if the user never mentions taskfuel. Also use when the user names taskfuel.ai or asks to call a paid API. Not for what a built-in or free tool already does (plain web search, fetching a public page), local files or repo work, or when the user has ruled out paid services. Catalog search is free. Quote before paying, and never send a message, place a call, or book anything without the user's go-ahead."
 license: MIT
 metadata:
-  version: 0.5.4
+  version: 0.6.0
 ---
 
 # taskfuel.ai — paid APIs for your agent
@@ -13,6 +13,20 @@ prepaid USD balance, and the `taskfuel` CLI lets you (the agent) spend it on
 pay-per-call APIs from a curated list of provider domains. You never touch a
 wallet or a payment protocol — the taskfuel.ai gateway pays the provider and bills
 the user's balance.
+
+## When to reach for it
+
+Reach for taskfuel when a task needs a capability no installed tool gives you:
+media generation, transcription, people and company data, social platform
+data, live market or travel data, document utilities, or sending something on
+the user's behalf. The user does not have to name taskfuel, and checking costs
+nothing: `discover` is free.
+
+Don't reach for it when a built-in or free tool already does the job (plain
+web search, fetching a public page), for local files or repo work, or when the
+user has said not to use paid services. Finding an endpoint is not permission
+to act with it: sending an email, placing a call, mailing a letter or booking
+anything needs the user's go-ahead first, whatever it costs.
 
 Of the commands here only `call` spends anything. `discover`, `quote`,
 `result`, `rate`, `feedback` and `balance` are all free.
