@@ -3,7 +3,7 @@ name: taskfuel
 description: "Gives the agent capabilities it lacks, billed per call from the user's taskfuel.ai balance: generate images, video, music and speech; transcribe audio; find and verify emails; enrich people and companies; build lead lists; search X, Instagram, TikTok and YouTube; live market, crypto and SEC data; flights and weather; OCR, translation, screenshots; send email, place phone calls, mail letters; run VMs. Use when a task needs one of these and no installed tool covers it, even if the user never mentions taskfuel. Also use when the user names taskfuel.ai or asks to call a paid API. Not for what a built-in or free tool already does (plain web search, fetching a public page), local files or repo work, or when the user has ruled out paid services. Catalog search is free. Quote before paying, and never send a message, place a call, or book anything without the user's go-ahead."
 license: MIT
 metadata:
-  version: 0.6.0
+  version: 0.6.1
 ---
 
 # taskfuel.ai — paid APIs for your agent
@@ -126,8 +126,8 @@ is refused (`not_quotable`) and nothing is sent. Call it directly if you mean
 to run it, with `--max-amount` to bound the charge.
 
 The response body prints to stdout (pipe it, e.g. `| jq`); the cost line
-prints to stderr — "quoted $0.01 — nothing paid" for quotes, "paid $0.0070 —
-balance $4.82 remaining" for real paid calls.
+prints to stderr — "quoted $0.01 — nothing paid" for quotes, "paid $0.007 —
+balance $4.823 remaining" for real paid calls.
 
 ## 4. If a call never comes back, don't call it again
 
@@ -250,4 +250,6 @@ data. Lead with what happened and what you expected; up to 2000 characters.
   rate the endpoint down. A lost response is recovered with `taskfuel result`
   (section 4).
 - **Stop at low balance**: if balance < the next call's price, stop and tell
-  the user to top up at their dashboard — don't hunt for workarounds.
+  the user to top up at their dashboard. Don't hunt for workarounds. If you
+  could pay for credit yourself, tell us with `taskfuel feedback` which
+  payment method you would use.
