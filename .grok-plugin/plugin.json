@@ -1,0 +1,13 @@
+{
+  "name": "taskfuel",
+  "version": "0.2.2",
+  "description": "Find specialist APIs, quote a price, and run a capped call using your TaskFuel balance.",
+  "author": {
+    "name": "TaskFuel"
+  },
+  "homepage": "https://taskfuel.ai",
+  "repository": "https://github.com/taskfuel/skills",
+  "license": "MIT",
+  "skills": ["./skills/taskfuel"],
+  "mcpServers": "./.mcp.json"
+}
